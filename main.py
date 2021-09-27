@@ -75,7 +75,8 @@ def main(device, args):
 
             model.zero_grad()
             data_dict = model.forward(images1.to(device, non_blocking=True), images2.to(device, non_blocking=True))
-            loss = data_dict['loss'].mean() # ddp
+            data_dict['loss'] = data_dict['loss'].mean() # ddp
+            loss = data_dict['loss']
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
@@ -109,6 +110,8 @@ def main(device, args):
 if __name__ == "__main__":
     args = get_args()
 
+    print('Device:', args.device)
+    print(f"Using {torch.cuda.device_count()} GPUs")
     main(device=args.device, args=args)
 
     completed_log_dir = args.log_dir.replace('in-progress', 'debug' if args.debug else 'completed')
