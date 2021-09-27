@@ -11,12 +11,12 @@ A PyTorch implementation for the paper [**Exploring Simple Siamese Representatio
 
 If you don't have python 3 environment:
 ```
-conda create -n simsiam python=3.8
+conda create -n simsiam python=3.8.6
 conda activate simsiam
 ```
 Then install the required packages:
 ```
-pip install -r requirements.txt
+pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
 ### Run SimSiam
