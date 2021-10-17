@@ -52,6 +52,8 @@ def get_args():
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--eval_from', type=str, default=None)
     parser.add_argument('--hide_progress', action='store_true')
+    parser.add_argument('--checkpoint', type=str)
+    parser.add_argument('--test', type=bool, default=False, action='store_false')
     args = parser.parse_args()
 
 
@@ -61,24 +63,23 @@ def get_args():
 
     if args.debug:
         if args.train: 
-            args.train.batch_size = 2
+            # args.train.batch_size = 4
             args.train.num_epochs = 1
             args.train.stop_at_epoch = 1
         if args.eval: 
-            args.eval.batch_size = 2
-            args.eval.num_epochs = 1 # train only one epoch
-        args.dataset.num_workers = 0
+            # args.eval.batch_size = 4
+            args.eval.num_epochs = 1
+        args.dataset.num_workers = 8
 
+    if not args.test:
+        assert not None in [args.log_dir, args.data_dir, args.ckpt_dir, args.name]
+        args.log_dir = os.path.join(args.log_dir, 'in-progress_' + datetime.now().strftime('%m%d%H%M%S_') + args.name)
 
-    assert not None in [args.log_dir, args.data_dir, args.ckpt_dir, args.name]
+        os.makedirs(args.log_dir, exist_ok=False)
+        print(f'creating file {args.log_dir}')
+        os.makedirs(args.ckpt_dir, exist_ok=True)
 
-    args.log_dir = os.path.join(args.log_dir, 'in-progress_'+datetime.now().strftime('%m%d%H%M%S_')+args.name)
-
-    os.makedirs(args.log_dir, exist_ok=False)
-    print(f'creating file {args.log_dir}')
-    os.makedirs(args.ckpt_dir, exist_ok=True)
-
-    shutil.copy2(args.config_file, args.log_dir)
+        shutil.copy2(args.config_file, args.log_dir)
     set_deterministic(args.seed)
 
 

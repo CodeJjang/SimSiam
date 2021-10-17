@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 import torchvision
 import numpy as np
+from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 from arguments import get_args
 from augmentations import get_aug
@@ -13,6 +14,9 @@ from datasets import get_dataset
 from optimizers import get_optimizer, LR_Scheduler
 from linear_eval import main as linear_eval
 from datetime import datetime
+
+from tools.test_monitor import load_test_datasets, evaluate_test, evaluate_validation
+
 
 def main(device, args):
 
@@ -25,24 +29,26 @@ def main(device, args):
         batch_size=args.train.batch_size,
         **args.dataloader_kwargs
     )
-    memory_loader = torch.utils.data.DataLoader(
+    val_loader = torch.utils.data.DataLoader(
         dataset=get_dataset(
-            transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs), 
-            train=True,
-            **args.dataset_kwargs),
-        shuffle=False,
-        batch_size=args.train.batch_size,
-        **args.dataloader_kwargs
-    )
-    test_loader = torch.utils.data.DataLoader(
-        dataset=get_dataset( 
-            transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs), 
+            transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs),
             train=False,
             **args.dataset_kwargs),
         shuffle=False,
         batch_size=args.train.batch_size,
         **args.dataloader_kwargs
     )
+    # test_loader = torch.utils.data.DataLoader(
+    #     dataset=get_dataset(
+    #         transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs),
+    #         train=False,
+    #         **args.dataset_kwargs),
+    #     shuffle=False,
+    #     batch_size=args.train.batch_size,
+    #     **args.dataloader_kwargs
+    # )
+    if args.train.test_monitor:
+        test_datasets = load_test_datasets(args.dataset_kwargs.get('data_dir'), args.debug)
 
     # define model
     model = get_model(args.model).to(device)
@@ -59,12 +65,14 @@ def main(device, args):
         optimizer,
         args.train.warmup_epochs, args.train.warmup_lr*args.train.batch_size/256, 
         args.train.num_epochs, args.train.base_lr*args.train.batch_size/256, args.train.final_lr*args.train.batch_size/256, 
-        len(train_loader),
+        args.train.steps_per_epoch,
         constant_predictor_lr=True # see the end of section 4.2 predictor
     )
 
     logger = Logger(tensorboard=args.logger.tensorboard, matplotlib=args.logger.matplotlib, log_dir=args.log_dir)
-    accuracy = 0 
+    val_accuracy = 0
+    test_accuracy = 0
+    min_accuracy = 200
     # Start training
     global_progress = tqdm(range(0, args.train.stop_at_epoch), desc=f'Training')
     for epoch in global_progress:
@@ -85,22 +93,35 @@ def main(device, args):
             local_progress.set_postfix(data_dict)
             logger.update_scalers(data_dict)
 
-        if args.train.knn_monitor and epoch % args.train.knn_interval == 0: 
-            accuracy = knn_monitor(model.module.backbone, memory_loader, test_loader, device, k=min(args.train.knn_k, len(memory_loader.dataset)), hide_progress=args.hide_progress) 
-        
-        epoch_dict = {"epoch":epoch, "accuracy":accuracy}
+            if (idx + 1) % args.train.steps_per_epoch == 0:
+                break
+
+        # if args.train.knn_monitor and epoch % args.train.knn_interval == 0:
+        #     accuracy = knn_monitor(model.module.backbone, val_loader, test_loader, device, k=min(args.train.knn_k, len(val_loader.dataset)), hide_progress=args.hide_progress)
+
+        if args.train.val_monitor and epoch % args.train.val_interval == 0:
+            model.eval()
+            val_accuracy = evaluate_validation(model.module.backbone, val_loader, device)
+
+        if args.train.test_monitor and epoch % args.train.test_interval == 0:
+            model.eval()
+            test_accuracy = evaluate_test(model.module.backbone, test_datasets, device)
+
+        epoch_dict = {"epoch":epoch, "val_accuracy": val_accuracy, "test_accuracy": test_accuracy}
         global_progress.set_postfix(epoch_dict)
         logger.update_scalers(epoch_dict)
-    
-    # Save checkpoint
-    model_path = os.path.join(args.ckpt_dir, f"{args.name}_{datetime.now().strftime('%m%d%H%M%S')}.pth") # datetime.now().strftime('%Y%m%d_%H%M%S')
-    torch.save({
-        'epoch': epoch+1,
-        'state_dict':model.module.state_dict()
-    }, model_path)
-    print(f"Model saved to {model_path}")
-    with open(os.path.join(args.log_dir, f"checkpoint_path.txt"), 'w+') as f:
-        f.write(f'{model_path}')
+        if val_accuracy < min_accuracy:
+            min_accuracy = val_accuracy
+            # Save checkpoint
+            model_path = os.path.join(args.ckpt_dir,
+                                      f"{args.name}_{val_accuracy}_{datetime.now().strftime('%m%d%H%M%S')}.pth")  # datetime.now().strftime('%Y%m%d_%H%M%S')
+            torch.save({
+                'epoch': epoch + 1,
+                'state_dict': model.module.state_dict()
+            }, model_path)
+            print(f"Model saved to {model_path}")
+            with open(os.path.join(args.log_dir, f"checkpoint_path.txt"), 'w+') as f:
+                f.write(f'{model_path}')
 
     if args.eval is not False:
         args.eval_from = model_path

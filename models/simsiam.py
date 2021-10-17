@@ -86,6 +86,13 @@ class prediction_MLP(nn.Module):
         x = self.layer2(x)
         return x 
 
+class Normalize(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        return F.normalize(input, dim=1)
+
 class SimSiam(nn.Module):
     def __init__(self, backbone=resnet50()):
         super().__init__()
