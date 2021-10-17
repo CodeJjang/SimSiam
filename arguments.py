@@ -53,7 +53,7 @@ def get_args():
     parser.add_argument('--eval_from', type=str, default=None)
     parser.add_argument('--hide_progress', action='store_true')
     parser.add_argument('--checkpoint', type=str)
-    parser.add_argument('--test', type=bool, default=False, action='store_false')
+    parser.add_argument('--test', default=False, action='store_true')
     args = parser.parse_args()
 
 

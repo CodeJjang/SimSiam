@@ -10,13 +10,12 @@ import glob
 
 class VisnirDataset(Dataset):
 
-    def __init__(self, data_dir, transform=None, train=True, test=False, debug=False):
+    def __init__(self, data_dir, transform=None, train=True, test=False):
         if not test:
             data_dir = os.path.join(data_dir, 'train\\train.hdf5')
             self.init_trainval(data_dir, transform, train)
         else:
-            data_dir = os.path.join(data_dir, 'test\\')
-            self.init_test(data_dir, debug)
+            self.init_test(data_dir, transform)
 
     def init_trainval(self, data_dir, transform, train):
         data = VisnirDataset.read_hdf5_data(data_dir)
@@ -50,40 +49,28 @@ class VisnirDataset(Dataset):
 
         self.transform = transform
 
-        # self.channel_mean1 = self.data[:, :, :, 0].mean()
-        # self.channel_mean2 = self.data[:, :, :, 1].mean()
-
         self.data_height = self.data.shape[1]
         self.data_width = self.data.shape[2]
 
-    def init_test(self, data_dir, debug):
-        file_list = glob.glob(data_dir + "*.hdf5")
-        self.data = {}
-        for f in file_list:
-            path, dataset_name = os.path.split(f)
-            dataset_name = os.path.splitext(dataset_name)[0]
+    def init_test(self, data_dir, transform):
+        data_dict = VisnirDataset.read_hdf5_data(data_dir)
+        data = np.squeeze(data_dict['Data']) # .astype(np.float32)
+        labels = torch.from_numpy(np.squeeze(data_dict['Labels']))
+        del data_dict
 
-            data_dict = VisnirDataset.read_hdf5_data(f)
+        self.pos_indices = np.squeeze(np.asarray(np.where(labels == 1)))
+        self.neg_indices = np.squeeze(np.asarray(np.where(labels == 0)))
 
-            data = data_dict['Data'].astype(np.float32)
-            test_labels = torch.from_numpy(np.squeeze(data_dict['Labels']))
-            del data_dict
+        self.pos_amount = len(self.pos_indices)
+        self.neg_amount = len(self.neg_indices)
 
-            x[:, :, :, :, 0] -= x[:, :, :, :, 0].mean()
-            x[:, :, :, :, 1] -= x[:, :, :, :, 1].mean()
+        self.data = data
+        self.labels = labels
 
-            x = normalize_image(x)
-            x = x.repeat(3, axis=1)
-            x = torch.from_numpy(x)
+        self.transform = transform
 
-            test_data[dataset_name] = dict()
-            test_data[dataset_name]['Data'] = x
-            test_data[dataset_name]['Labels'] = test_labels
-            del x
-            if debug:
-                break
-
-        return test_data
+        self.data_height = self.data.shape[1]
+        self.data_width = self.data.shape[2]
 
     def __len__(self):
         return self.data.shape[0]
