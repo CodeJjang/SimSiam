@@ -30,7 +30,8 @@ train:
   knn_k: 200
   steps_per_epoch: 60
 eval: False # linear evaluation, False will turn off automatic evaluation after training
-
+val:
+  batch_size: 4092
 
 logger:
   tensorboard: True

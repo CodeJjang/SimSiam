@@ -26,7 +26,7 @@ def test(device, args):
             train=False,
             **args.dataset_kwargs),
         shuffle=False,
-        batch_size=args.train.batch_size,
+        batch_size=args.val.batch_size,
         **args.dataloader_kwargs
     )
     test_datasets = []
@@ -34,6 +34,7 @@ def test(device, args):
     for f in file_list:
         _, dataset_name = os.path.split(f)
         dataset_name = os.path.splitext(dataset_name)[0]
+        print('Loading test dataset', dataset_name)
         dataset = get_dataset(
             transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs),
             train=False,
@@ -46,8 +47,8 @@ def test(device, args):
             break
     test_loader = torch.utils.data.DataLoader(
         dataset=ConcatDataset(test_datasets),
-        shuffle=True,
-        batch_size=args.train.batch_size,
+        shuffle=False,
+        batch_size=args.val.batch_size,
         **args.dataloader_kwargs
     )
     # test_datasets = load_test_datasets(args.dataset_kwargs.get('data_dir'), args.debug)
@@ -58,11 +59,13 @@ def test(device, args):
     model = torch.nn.DataParallel(model)
 
     model.eval()
+    print(datetime.now(), 'Calculating val accuracy')
     val_accuracy = evaluate_validation(model.module.backbone, val_loader, device)
-    test_accuracy = evaluate_validation(model.module.backbone, test_loader, device)
+    print(datetime.now(), 'Val FPR95', val_accuracy)
 
-    print('Val FPR95', val_accuracy)
-    print('Test FPR95', test_accuracy)
+    print(datetime.now(), 'Calculating test accuracy')
+    test_accuracy = evaluate_validation(model.module.backbone, test_loader, device)
+    print(datetime.now(), 'Test FPR95', test_accuracy)
 
 
 if __name__ == "__main__":

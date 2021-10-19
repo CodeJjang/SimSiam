@@ -95,8 +95,11 @@ def evaluate_network(net, data1, data2, device, step_size=800):
 
 
 def evaluate_validation(net, val_loader, device):
+    samples_amount = 0
+    total_err = 0
     for ((images1, images2), labels) in tqdm(val_loader, desc='Validation', leave=False, disable=True):
-        val_emb = evaluate_network(net, images1, images2, device)
+        val_emb = evaluate_network(net, images1, images2, device, step_size=len(labels))
         dist = np.power(val_emb['Emb1'] - val_emb['Emb2'], 2).sum(1)
-        val_err = FPR95Accuracy(dist, labels) * 100
-        return val_err
+        total_err += FPR95Accuracy(dist, labels) * 100 * len(labels)
+        samples_amount += len(labels)
+    return total_err / samples_amount

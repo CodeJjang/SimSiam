@@ -16,6 +16,7 @@ class VisnirDataset(Dataset):
             self.init_trainval(data_dir, transform, train)
         else:
             self.init_test(data_dir, transform)
+        self.test = test
 
     def init_trainval(self, data_dir, transform, train):
         data = VisnirDataset.read_hdf5_data(data_dir)
@@ -64,8 +65,10 @@ class VisnirDataset(Dataset):
         self.pos_amount = len(self.pos_indices)
         self.neg_amount = len(self.neg_indices)
 
-        self.data = data
-        self.labels = labels
+        # to have equal pos/neg in each batch
+        balance_data = np.array([idx for pair in zip(self.pos_indices, self.neg_indices) for idx in pair])
+        self.data = data[balance_data]
+        self.labels = labels[balance_data]
 
         self.transform = transform
 
