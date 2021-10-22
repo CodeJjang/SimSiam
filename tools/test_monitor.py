@@ -98,6 +98,14 @@ def evaluate_validation(net, val_loader, device):
     samples_amount = 0
     total_err = 0
     for ((images1, images2), labels) in tqdm(val_loader, desc='Validation', leave=False, disable=True):
+        # copy images 2 to images 1 only where label is "positive" 1
+        # pos_indices = np.where(labels == 1)
+        # images2[pos_indices] = images1[pos_indices]
+        # neg_indices = np.where(labels == 0)
+        # # We need to assign shuffled negative indices to generate negative samples of same sensor
+        # shuffled_neg_indices = np.random.permutation(neg_indices[0])
+        # images2[neg_indices] = images1[shuffled_neg_indices]
+
         val_emb = evaluate_network(net, images1, images2, device, step_size=len(labels))
         dist = np.power(val_emb['Emb1'] - val_emb['Emb2'], 2).sum(1)
         total_err += FPR95Accuracy(dist, labels) * 100 * len(labels)

@@ -94,6 +94,7 @@ class VisnirDataset(Dataset):
 
         if self.transform:
             im1, im2 = self.transform(im1, im2)
+            # im1, im2 = self.transform(im1, im1)
 
         label = self.labels[index]
         return [im1, im2], label
