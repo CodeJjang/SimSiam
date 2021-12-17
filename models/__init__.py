@@ -7,8 +7,9 @@ from .backbones import resnet18_cifar_variant1, resnet18_cifar_variant2, resnet5
     multiscale_transformer
 
 
-def get_backbone(backbone, castrate=True):
-    backbone = eval(f"{backbone}()")
+def get_backbone(backbone, params=None, castrate=True):
+    params = params or {}
+    backbone = globals()['visnir_cnn_backbone'](**params)
 
     if castrate:
         backbone.output_dim = backbone.fc.in_features
@@ -19,7 +20,7 @@ def get_backbone(backbone, castrate=True):
 
 def get_model(model_cfg):
     if 'simsiam' in model_cfg.name:
-        model = SimSiam(get_backbone(model_cfg.backbone))
+        model = SimSiam(get_backbone(model_cfg.backbone, vars(model_cfg.params), castrate=True))
         if model_cfg.proj_layers is not None:
             model.projector.set_layers(model_cfg.proj_layers)
 

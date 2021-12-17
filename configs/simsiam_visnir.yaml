@@ -8,6 +8,8 @@ model:
   name: visnir_simsiam
   backbone: visnir_cnn_backbone
   proj_layers: 3
+  params:
+    output_feat_map: True
 
 train:
   optimizer:
