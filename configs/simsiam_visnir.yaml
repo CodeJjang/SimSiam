@@ -10,7 +10,7 @@ model:
   proj_layers: 3
 
 train:
-  optimizer: 
+  optimizer:
     name: sgd
     weight_decay: 0.0005
     momentum: 0.9
@@ -19,7 +19,7 @@ train:
   base_lr: 0.03
   final_lr: 0
   num_epochs: 800 # this parameter influence the lr decay
-  stop_at_epoch: 800 # has to be smaller than num_epochs
+  stop_at_epoch: 200 # has to be smaller than num_epochs
   batch_size: 1024
   knn_monitor: False # knn monitor will take more time
   knn_interval: 1
@@ -28,7 +28,7 @@ train:
   test_monitor: False
   test_interval: 10
   knn_k: 200
-  steps_per_epoch: 60
+  steps_per_epoch: 1000
 eval: False # linear evaluation, False will turn off automatic evaluation after training
 val:
   batch_size: 4092

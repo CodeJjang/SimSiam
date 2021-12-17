@@ -111,6 +111,8 @@ class SimSiam(nn.Module):
         f, h = self.encoder, self.predictor
         z1, z2 = f(x1), f(x2)
         p1, p2 = h(z1), h(z2)
+        # p1, p2, z1, z2 = F.normalize(p1, dim=1), F.normalize(p2, dim=1), F.normalize(z1.detach(), dim=1), F.normalize(z2.detach(), dim=1)
+        # return p1, p2, z1, z2
         L = D(p1, z2) / 2 + D(p2, z1) / 2
         return {'loss': L}
 

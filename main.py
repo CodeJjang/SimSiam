@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 import torchvision
 import numpy as np
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 from arguments import get_args
@@ -15,6 +16,7 @@ from optimizers import get_optimizer, LR_Scheduler
 from linear_eval import main as linear_eval
 from datetime import datetime
 
+from tools.online_negative_mining import OnlineHardNegativeMiningTripletLoss
 from tools.test_monitor import load_test_datasets, evaluate_test, evaluate_validation
 
 
@@ -55,19 +57,22 @@ def main(device, args):
     model = torch.nn.DataParallel(model)
 
     # define optimizer
+    base_lr = args.train.base_lr*args.train.batch_size/256
     optimizer = get_optimizer(
         args.train.optimizer.name, model, 
-        lr=args.train.base_lr*args.train.batch_size/256, 
+        lr=base_lr,
         momentum=args.train.optimizer.momentum,
         weight_decay=args.train.optimizer.weight_decay)
 
     lr_scheduler = LR_Scheduler(
         optimizer,
-        args.train.warmup_epochs, args.train.warmup_lr*args.train.batch_size/256, 
-        args.train.num_epochs, args.train.base_lr*args.train.batch_size/256, args.train.final_lr*args.train.batch_size/256, 
+        args.train.warmup_epochs, args.train.warmup_lr*args.train.batch_size/256,
+        args.train.num_epochs, base_lr, args.train.final_lr*args.train.batch_size/256,
         args.train.steps_per_epoch,
         constant_predictor_lr=True # see the end of section 4.2 predictor
     )
+
+    # criterion = OnlineHardNegativeMiningTripletLoss(margin=1, mode='Random', device=device)
 
     logger = Logger(tensorboard=args.logger.tensorboard, matplotlib=args.logger.matplotlib, log_dir=args.log_dir)
     val_accuracy = 0
@@ -82,6 +87,9 @@ def main(device, args):
         for idx, ((images1, images2), labels) in enumerate(local_progress):
 
             model.zero_grad()
+            # p1, p2, z1, z2 = model.forward(images1.to(device, non_blocking=True), images2.to(device, non_blocking=True))
+            # loss = criterion(p1, z2) + criterion(p2, z1)
+            # data_dict = {'loss': loss}
             data_dict = model.forward(images1.to(device, non_blocking=True), images2.to(device, non_blocking=True))
             data_dict['loss'] = data_dict['loss'].mean() # ddp
             loss = data_dict['loss']
@@ -89,7 +97,7 @@ def main(device, args):
             optimizer.step()
             lr_scheduler.step()
             data_dict.update({'lr':lr_scheduler.get_lr()})
-            
+
             local_progress.set_postfix(data_dict)
             logger.update_scalers(data_dict)
 
