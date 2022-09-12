@@ -5,7 +5,7 @@ import math
 
 class VisNirCNN(nn.Module):
 
-    def __init__(self, output_feat_map=False):
+    def __init__(self, out_pool_size, output_feat_map=False):
         super(VisNirCNN, self).__init__()
 
         self.block = nn.Sequential(
@@ -43,7 +43,7 @@ class VisNirCNN(nn.Module):
         self.output_feat_map = output_feat_map
         if not output_feat_map:
             # prev_conv_size = 29
-            self.out_pool_size = [8,4,2,1]
+            self.out_pool_size = out_pool_size
             # h_wid = w_wid = int(math.ceil(prev_conv_size / out_pool_size))
             # h_pad = w_pad = int((h_wid * out_pool_size - prev_conv_size + 1) / 2)
             # self.pooling = nn.MaxPool2d((h_wid, w_wid), stride=(h_wid, w_wid), padding=(h_pad, w_pad))

@@ -116,7 +116,7 @@ def main(device, args):
         if args.train.test_monitor and epoch % args.train.test_interval == 0:
             model.eval()
             # test_accuracy = evaluate_test(model.module.backbone, test_datasets, device)
-            test_accuracy = evaluate_validation(model.module.backbone, test_loader, device)
+            test_accuracy = evaluate_validation(model.module.backbone, test_loader, device, adain='adain' in model.name)
             epoch_dict["test_accuracy"] = test_accuracy
 
         global_progress.set_postfix(epoch_dict)

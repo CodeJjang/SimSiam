@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from datasets import VisnirDataset
+from models.layers.adain import adain
 from tools.image import normalize_image
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -72,7 +73,7 @@ def FPR95Accuracy(dist_mat, labels):
     return fp / float(neg_dists.shape[0])
 
 
-def evaluate_network(net, data1, data2, device, step_size=800):
+def evaluate_network(net, data1, data2, device, step_size=800, adain=False):
     with torch.no_grad():
 
         for k in range(0, data1.shape[0], step_size):
@@ -82,6 +83,7 @@ def evaluate_network(net, data1, data2, device, step_size=800):
 
             a, b = a.to(device, non_blocking=True), b.to(device, non_blocking=True)
             x1, x2 = net(a), net(b)
+            # x1, x2 = net(a, b)
             x1, x2 = F.normalize(x1, dim=1), F.normalize(x2, dim=1)
             if k == 0:
                 emb = dict()
@@ -94,7 +96,7 @@ def evaluate_network(net, data1, data2, device, step_size=800):
     return emb
 
 
-def evaluate_validation(net, val_loader, device):
+def evaluate_validation(net, val_loader, device, adain=False):
     samples_amount = 0
     total_err = 0
     for ((images1, images2), labels) in tqdm(val_loader, desc='Validation', leave=False, disable=True):
@@ -106,7 +108,7 @@ def evaluate_validation(net, val_loader, device):
         # shuffled_neg_indices = np.random.permutation(neg_indices[0])
         # images2[neg_indices] = images1[shuffled_neg_indices]
 
-        val_emb = evaluate_network(net, images1, images2, device, step_size=len(labels))
+        val_emb = evaluate_network(net, images1, images2, device, step_size=len(labels), adain=adain)
         dist = np.power(val_emb['Emb1'] - val_emb['Emb2'], 2).sum(1)
         total_err += FPR95Accuracy(dist, labels) * 100 * len(labels)
         samples_amount += len(labels)

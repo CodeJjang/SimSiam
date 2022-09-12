@@ -5,7 +5,7 @@ from torch import nn as nn
 from torch.nn import functional as F
 
 from models.backbones.visnir_cnn import VisNirCNN
-from models.backbones.transformer import TransformerEncoderLayer, TransformerEncoder
+from models.layers.transformer import TransformerEncoderLayer, TransformerEncoder
 
 
 class MultiscaleTransformerEncoder(nn.Module):

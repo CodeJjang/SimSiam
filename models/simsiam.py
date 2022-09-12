@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F 
 from torchvision.models import resnet50
 
+from models.layers.adain import adain, calc_mean_std
+
 
 def D(p, z, version='simplified'): # negative cosine similarity
     if version == 'original':
@@ -116,6 +118,47 @@ class SimSiam(nn.Module):
         L = D(p1, z2) / 2 + D(p2, z1) / 2
         return {'loss': L}
 
+
+class SimSiamAdaIN(nn.Module):
+    def __init__(self, backbone=resnet50()):
+        super().__init__()
+
+        self.backbone = backbone
+        self.projector = projection_MLP(backbone.output_dim)
+
+        self.encoder = nn.Sequential(  # f encoder
+            self.backbone,
+            self.projector
+        )
+        self.predictor = prediction_MLP()
+
+    def calc_style_loss_per_feat(self, input, target):
+        assert (input.size() == target.size())
+        # assert (target.requires_grad is False)
+        input_mean, input_std = calc_mean_std(input)
+        target_mean, target_std = calc_mean_std(target)
+        return nn.MSELoss()(input_mean, target_mean) + \
+               nn.MSELoss()(input_std, target_std)
+
+    def calc_style_loss(self, content_feats, style_feats):
+        loss_s = self.calc_style_loss_per_feat(content_feats[0], style_feats[0])
+        for i in range(1, 5): # (1, 8)
+            loss_s += self.calc_style_loss_per_feat(content_feats[i], style_feats[i])
+
+        return loss_s
+
+    def forward(self, x1, x2):
+        f, p, h = self.backbone, self.projector, self.predictor
+        z1, z2, content_feats, style_feats = f(x1, x2)
+        z1, z2 = p(z1), p(z2)
+        p1, p2 = h(z1), h(z2)
+        # p1, p2, z1, z2 = F.normalize(p1, dim=1), F.normalize(p2, dim=1), F.normalize(z1.detach(), dim=1), F.normalize(z2.detach(), dim=1)
+        # return p1, p2, z1, z2
+        contrastive_loss = D(p1, z2) / 2 + D(p2, z1) / 2
+        # style_loss = self.calc_style_loss(content_feats, style_feats)
+        # style_loss += self.calc_style_loss(style_feats, content_feats)
+        L = contrastive_loss
+        return {'loss': L}
 
 
 

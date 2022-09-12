@@ -15,7 +15,7 @@ def get_aug(name='simsiam', image_size=224, train=True, train_classifier=None):
             augmentation = BYOL_transform(image_size)
         elif name == 'simclr':
             augmentation = SimCLRTransform(image_size)
-        elif name == 'visnir_simsiam':
+        elif 'visnir_simsiam' in name:
             augmentation = VisnirSimSiamTransform(image_size)
         elif name == 'visnir_byol':
             augmentation = VisnirByolTransform(image_size)
@@ -24,7 +24,7 @@ def get_aug(name='simsiam', image_size=224, train=True, train_classifier=None):
     elif train==False:
         if train_classifier is None:
             raise Exception
-        if name == 'visnir_simsiam':
+        if 'visnir_simsiam' in name:
             augmentation = VisnirSimSiamTransform(image_size, train=False)
         elif name == 'visnir_byol':
             augmentation = VisnirByolTransform(image_size, train=False)
