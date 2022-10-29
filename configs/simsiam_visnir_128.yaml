@@ -1,0 +1,51 @@
+name: simsiam_visnir_cnn_backbone
+dataset: 
+  name: visnir
+  image_size: 64
+  num_workers: 0
+
+model: 
+  name: visnir_simsiam
+  backbone: visnir_cnn_backbone
+  proj_layers: 3
+  embedding_dim: 128
+  params:
+    output_feat_map: False
+    out_pool_size: [8]
+
+train:
+  optimizer:
+    name: sgd
+    weight_decay: 0.0005
+    momentum: 0.9
+  warmup_epochs: 10
+  warmup_lr: 0
+  base_lr: 0.03
+  final_lr: 0
+  num_epochs: 800 # this parameter influence the lr decay
+  stop_at_epoch: 200 # has to be smaller than num_epochs
+  batch_size: 1024
+  knn_monitor: False # knn monitor will take more time
+  knn_interval: 1
+  val_monitor: True
+  val_interval: 1
+  test_monitor: False
+  test_interval: 10
+  knn_k: 200
+  steps_per_epoch: 100
+eval: False # linear evaluation, False will turn off automatic evaluation after training
+val:
+  batch_size: 4092
+
+logger:
+  tensorboard: True
+  matplotlib: True
+
+seed: null # None type for yaml file
+# two things might lead to stochastic behavior other than seed:
+# worker_init_fn from dataloader and torch.nn.functional.interpolate 
+# (keep this in mind if you want to achieve 100% deterministic)
+
+
+
+
