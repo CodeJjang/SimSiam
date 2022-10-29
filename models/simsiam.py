@@ -96,17 +96,18 @@ class Normalize(nn.Module):
         return F.normalize(input, dim=1)
 
 class SimSiam(nn.Module):
-    def __init__(self, backbone=resnet50()):
+    def __init__(self, backbone=resnet50(), embedding_dim=2048):
         super().__init__()
-        
+
+        self.embedding_dim = embedding_dim if embedding_dim else 2048
         self.backbone = backbone
-        self.projector = projection_MLP(backbone.output_dim)
+        self.projector = projection_MLP(backbone.output_dim, self.embedding_dim, self.embedding_dim)
 
         self.encoder = nn.Sequential( # f encoder
             self.backbone,
             self.projector
         )
-        self.predictor = prediction_MLP()
+        self.predictor = prediction_MLP(self.embedding_dim, self.embedding_dim//4, self.embedding_dim)
     
     def forward(self, x1, x2):
 

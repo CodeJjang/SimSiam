@@ -7,7 +7,7 @@ from .random_dataset import RandomDataset
 from .visnir_dataset import VisnirDataset
 
 
-def get_dataset(dataset, data_dir, transform, train=True, test=False, download=False, debug_subset_size=None):
+def get_dataset(dataset, data_dir, transform, train=True, test=False, download=False, debug_subset_size=None, shuffle=False):
     if dataset == 'mnist':
         dataset = torchvision.datasets.MNIST(data_dir, train=train, transform=transform, download=download)
     elif dataset == 'stl10':
@@ -24,7 +24,7 @@ def get_dataset(dataset, data_dir, transform, train=True, test=False, download=F
         dataset = RandomDataset()
     elif dataset == 'visnir':
         dataset = VisnirDataset(data_dir, transform=transform,
-                                train=train, test=test)
+                                train=train, test=test, shuffle=shuffle)
     else:
         raise NotImplementedError
 

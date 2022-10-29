@@ -116,12 +116,14 @@ def main(device, args):
         if args.train.test_monitor and epoch % args.train.test_interval == 0:
             model.eval()
             # test_accuracy = evaluate_test(model.module.backbone, test_datasets, device)
+            # test_accuracy = evaluate_validation(model.module.backbone, test_loader, device, adain='adain' in model.name)
             test_accuracy = evaluate_validation(model.module.backbone, test_loader, device, adain='adain' in model.name)
+
             epoch_dict["test_accuracy"] = test_accuracy
 
         global_progress.set_postfix(epoch_dict)
         logger.update_scalers(epoch_dict)
-        if val_accuracy < min_accuracy:
+        if val_accuracy < min_accuracy or args.save_all:
             min_accuracy = val_accuracy
             # Save checkpoint
             model_path = os.path.join(args.log_dir, 'checkpoints',

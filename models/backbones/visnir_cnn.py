@@ -41,6 +41,7 @@ class VisNirCNN(nn.Module):
             nn.BatchNorm2d(128, affine=False),
         )
         self.output_feat_map = output_feat_map
+        self.dropout = torch.nn.Dropout(0.5)
         if not output_feat_map:
             # prev_conv_size = 29
             self.out_pool_size = out_pool_size
@@ -79,7 +80,7 @@ class VisNirCNN(nn.Module):
         pooled_feats = self.spatial_pyramid_pool(conv_feats, x.shape[0], [int(conv_feats.size(2)), int(conv_feats.size(3))],
                                self.out_pool_size)
         flattened_feats = pooled_feats.view(x.shape[0], -1)
-        dropped_feats = torch.nn.Dropout(0.5)(flattened_feats)
+        dropped_feats = self.dropout(flattened_feats)
         fc = self.fc(dropped_feats)
         fc = torch.nn.functional.normalize(fc, dim=1, p=2)
         return fc

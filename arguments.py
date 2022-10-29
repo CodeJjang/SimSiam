@@ -53,6 +53,9 @@ def get_args():
     parser.add_argument('--hide_progress', action='store_true')
     parser.add_argument('--checkpoint', type=str)
     parser.add_argument('--test', default=False, action='store_true')
+    parser.add_argument('--save-all', default=False, action='store_true')
+    parser.add_argument('--sim', type=str, default='')
+
     args = parser.parse_args()
 
 

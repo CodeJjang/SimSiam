@@ -10,15 +10,15 @@ import glob
 
 class VisnirDataset(Dataset):
 
-    def __init__(self, data_dir, transform=None, train=True, test=False):
+    def __init__(self, data_dir, transform=None, train=True, test=False, shuffle=False):
         if not test:
             data_dir = os.path.join(data_dir, 'train\\train.hdf5')
-            self.init_trainval(data_dir, transform, train)
+            self.init_trainval(data_dir, transform, train, shuffle)
         else:
             self.init_test(data_dir, transform)
         self.test = test
 
-    def init_trainval(self, data_dir, transform, train):
+    def init_trainval(self, data_dir, transform, train, shuffle=False):
         data = VisnirDataset.read_hdf5_data(data_dir)
         train_data = data['Data']
         train_labels = np.squeeze(data['Labels'])
@@ -45,6 +45,13 @@ class VisnirDataset(Dataset):
         self.pos_amount = len(self.pos_indices)
         self.neg_amount = len(self.neg_indices)
 
+        if shuffle:
+            n, h, w, p = data.shape
+            flattened_data = data.transpose(0, 3, 1, 2).reshape(-1, h, w)
+            shuffle_indices = np.random.choice(len(flattened_data), size=len(flattened_data), replace=False)
+            flattened_data = flattened_data[shuffle_indices]
+            data = flattened_data.reshape(n, p, h, w).transpose(0, 2, 3, 1)
+            labels = np.zeros_like(labels)
         self.data = data
         self.labels = labels
 

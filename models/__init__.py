@@ -24,9 +24,12 @@ def get_model(model_cfg):
         if model_cfg.proj_layers is not None:
             model.projector.set_layers(model_cfg.proj_layers)
     elif 'simsiam' in model_cfg.name:
-        model = SimSiam(get_backbone(model_cfg.backbone, vars(model_cfg.params), castrate=True))
+        embedding_dim = model_cfg.embedding_dim if hasattr(model_cfg, 'embedding_dim') else None
+        model = SimSiam(get_backbone(model_cfg.backbone, vars(model_cfg.params), castrate=True), embedding_dim=embedding_dim)
         if model_cfg.proj_layers is not None:
             model.projector.set_layers(model_cfg.proj_layers)
+
+
     elif 'byol' in model_cfg.name:
         model = BYOL(get_backbone(model_cfg.backbone))
     elif 'simclr' in model_cfg.name:
