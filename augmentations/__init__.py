@@ -6,11 +6,11 @@ from .visnir_simsiam_aug import VisnirSimSiamTransform
 from .visnir_byol_aug import VisnirByolTransform
 
 
-def get_aug(name='simsiam', image_size=224, train=True, train_classifier=None):
+def get_aug(name='simsiam', image_size=224, train=True, train_classifier=None, **kwargs):
 
     if train==True:
         if name == 'simsiam':
-            augmentation = SimSiamTransform(image_size)
+            augmentation = SimSiamTransform(image_size, **kwargs)
         elif name == 'byol':
             augmentation = BYOL_transform(image_size)
         elif name == 'simclr':
@@ -25,7 +25,7 @@ def get_aug(name='simsiam', image_size=224, train=True, train_classifier=None):
         if train_classifier is None:
             raise Exception
         if 'visnir_simsiam' in name:
-            augmentation = VisnirSimSiamTransform(image_size, train=False)
+            augmentation = VisnirSimSiamTransform(image_size, train=False, **kwargs)
         elif name == 'visnir_byol':
             augmentation = VisnirByolTransform(image_size, train=False)
         else:

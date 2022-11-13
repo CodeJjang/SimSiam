@@ -10,13 +10,15 @@ import glob
 
 class VisnirDataset(Dataset):
 
-    def __init__(self, data_dir, transform=None, train=True, test=False, shuffle=False):
+    def __init__(self, data_dir, transform=None, train=True, test=False, shuffle=False,
+                 channels=3):
         if not test:
             data_dir = os.path.join(data_dir, 'train\\train.hdf5')
             self.init_trainval(data_dir, transform, train, shuffle)
         else:
             self.init_test(data_dir, transform)
         self.test = test
+        self.channels = channels
 
     def init_trainval(self, data_dir, transform, train, shuffle=False):
         data = VisnirDataset.read_hdf5_data(data_dir)
@@ -93,8 +95,8 @@ class VisnirDataset(Dataset):
         # pos_images = self.data[pos_idx, :, :, :]
         images = self.data[index]
 
-        im1 = images[..., 0, None].repeat(3, axis=2)
-        im2 = images[..., 1, None].repeat(3, axis=2)
+        im1 = images[..., 0, None].repeat(self.channels, axis=2).squeeze()
+        im2 = images[..., 1, None].repeat(self.channels, axis=2).squeeze()
 
         im1 = Image.fromarray(im1)
         im2 = Image.fromarray(im2)

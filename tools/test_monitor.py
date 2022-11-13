@@ -73,7 +73,7 @@ def FPR95Accuracy(dist_mat, labels):
     return fp / float(neg_dists.shape[0])
 
 
-def evaluate_network(net, data1, data2, device, step_size=800, adain=False):
+def evaluate_network(net, data1, data2, device, step_size=800, adain=False, model_name='cnn_backbone'):
     with torch.no_grad():
 
         for k in range(0, data1.shape[0], step_size):
@@ -82,8 +82,11 @@ def evaluate_network(net, data1, data2, device, step_size=800, adain=False):
             b = data2[k:(k + step_size), :, :, :]
 
             a, b = a.to(device, non_blocking=True), b.to(device, non_blocking=True)
-            x1, x2 = net(a), net(b)
-            # x1, x2 = net(a, b)
+            if model_name == 'cnn_backbone':
+                x1, x2 = net(a), net(b)
+            else:
+                res = net(a, b)
+                x1, x2 = res['Emb1'], res['Emb2']
             x1, x2 = F.normalize(x1, dim=1), F.normalize(x2, dim=1)
             if k == 0:
                 emb = dict()

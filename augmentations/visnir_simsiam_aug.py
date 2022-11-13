@@ -8,14 +8,14 @@ except ImportError:
     T.GaussianBlur = GaussianBlur
 
 class VisnirSimSiamTransform():
-    def __init__(self, image_size, train=True):
+    def __init__(self, image_size, train=True, channels=3):
         image_size = 224 if image_size is None else image_size  # by default simsiam use image size 224
         p_blur = 0.5 if image_size > 32 else 0  # exclude cifar
         # the paper didn't specify this, feel free to change this value
         # I use the setting from simclr which is 50% chance applying the gaussian blur
         # the 32 is prepared for cifar training where they disabled gaussian blur
-        self.visnir_vis_mean_std = [[0.3614] * 3, [0.1909] * 3]
-        self.visnir_nir_mean_std = [[0.6393] * 3, [0.1793] * 3]
+        self.visnir_vis_mean_std = [[0.3614] * channels, [0.1909] * channels]
+        self.visnir_nir_mean_std = [[0.6393] * channels, [0.1793] * channels]
         # self.visnir_vis_mean_std = [[0.3614], [0.1909]]
         # self.visnir_nir_mean_std = [[0.6393], [0.1793]]
         if train:

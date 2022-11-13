@@ -9,6 +9,7 @@ from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 from arguments import get_args
 from augmentations import get_aug
+from generate_pseudo_labels import try_load_cnn_state_dict
 from models import get_model
 from tools import AverageMeter, knn_monitor, Logger, file_exist_check
 from datasets import get_dataset
@@ -54,6 +55,11 @@ def main(device, args):
 
     # define model
     model = get_model(args.model).to(device)
+    try:
+        model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
+    except Exception as e:
+        print('Caught incorrect state dict, trying to resolve...')
+        try_load_cnn_state_dict(model, torch.load(args.checkpoint, map_location=torch.device('cpu'))['state_dict'])
     model = torch.nn.DataParallel(model)
 
     # define optimizer

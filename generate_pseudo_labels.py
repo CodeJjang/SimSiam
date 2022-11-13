@@ -9,6 +9,7 @@ from tqdm import tqdm
 from arguments import get_args
 from augmentations import get_aug
 from models import get_model
+from models.backbones.multiscale_transformer_encoder import MultiscaleTransformerEncoder
 from tools import AverageMeter, knn_monitor, Logger, file_exist_check
 from datasets import get_dataset
 from optimizers import get_optimizer, LR_Scheduler
@@ -18,9 +19,33 @@ from datetime import datetime
 from tools.test_monitor import load_test_datasets, evaluate_test, evaluate_validation, evaluate_network
 import glob
 import h5py
+import re
+
 
 def generate_pseudo_labels(device, args):
+    if not args.cycle_name:
+        print('Cycle name missing')
+        return
 
+    # define model
+    state_dict = torch.load(args.checkpoint)['state_dict']
+    if 'query' in state_dict.keys():
+        model = MultiscaleTransformerEncoder(0.5).to(device)
+        model_name = 'mt_encoder'
+        channels = 1
+    else:
+        model = get_model(args.model).to(device).module.backbone
+        model_name = 'cnn_backbone'
+        channels = 3
+    try:
+        model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
+    except Exception as e:
+        print('Caught incorrect state dict, trying to resolve...')
+        try_load_cnn_state_dict(model, torch.load(args.checkpoint, map_location=torch.device('cpu'))['state_dict'])
+    model = torch.nn.DataParallel(model)
+    model.eval()
+    args.dataset_kwargs['channels'] = channels
+    args.aug_kwargs['channels'] = channels
     train_loader = torch.utils.data.DataLoader(
         dataset=get_dataset(
             transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs),
@@ -35,14 +60,8 @@ def generate_pseudo_labels(device, args):
             transform=get_aug(train=False, train_classifier=False, **args.aug_kwargs),
             train=False,
             **args.dataset_kwargs)
-    # define model
-    model = get_model(args.model).to(device)
-    model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
-    model = torch.nn.DataParallel(model)
-
-    model.eval()
     print(datetime.now(), 'Generating embeddings...')
-    rgb_embeddings, rgb_images, nir_embeddings, nir_images = gen_embeddings(model.module.backbone, train_loader, device)
+    rgb_embeddings, rgb_images, nir_embeddings, nir_images = gen_embeddings(model, train_loader, device, model_name=model_name)
     print(datetime.now(), 'Finished generating embeddings')
 
     sim_matrix = np.dot(rgb_embeddings, nir_embeddings.transpose(1, 0))
@@ -55,7 +74,7 @@ def generate_pseudo_labels(device, args):
         sim = sim_matrix[np.arange(len(rgb_most_similar_nir_indices)), rgb_most_similar_nir_indices]
     else:
         raise Exception('Undefined similarity method', args.sim)
-    topk = max(1000, int(0.1 * len(sim)))
+    topk = 10000
     most_similar_indices = np.argsort(sim)[-topk:]
     rgb_indices = rgb_most_similar_nir_indices[most_similar_indices]
     nir_indices = rgb_most_similar_nir_indices[rgb_indices]
@@ -67,8 +86,8 @@ def generate_pseudo_labels(device, args):
     data = np.vstack([train_data, val_data.data[:, np.newaxis]])
     labels = np.concatenate([np.ones(len(train_data)), val_data.labels])
     set = np.concatenate([np.ones(len(train_data)), np.ones(len(val_data)) * 3])
-    trainval_name = 'pseudo_labels_trainval_{}_top_{}.hdf5'.format(args.sim, topk)
-    save_path = os.path.join(args.dataset_kwargs['data_dir'], 'train', trainval_name)
+    trainval_name = 'pseudo_labels_trainval_{}_{}_top_{}.hdf5'.format(model_name, args.sim, topk)
+    save_path = os.path.join(args.dataset_kwargs['data_dir'], 'train', 'pseudo_labels', args.cycle_name, trainval_name)
     with h5py.File(save_path, 'w') as f:
         f.create_dataset('Data', data=data)
         f.create_dataset('Labels', data=labels)
@@ -77,13 +96,13 @@ def generate_pseudo_labels(device, args):
     print(datetime.now(), 'Finished pseudo labeling')
 
 
-def gen_embeddings(net, data_loader, device, adain=False):
+def gen_embeddings(net, data_loader, device, adain=False, model_name='cnn_backbone'):
     rgb_embeddings = []
     nir_embeddings = []
     rgb_images = []
     nir_images = []
     for ((images1, images2), labels) in tqdm(data_loader, leave=False, disable=True):
-        val_emb = evaluate_network(net, images1, images2, device, step_size=len(labels), adain=adain)
+        val_emb = evaluate_network(net, images1, images2, device, step_size=len(labels), adain=adain, model_name=model_name)
         rgb_embeddings.append(val_emb['Emb1'])
         nir_embeddings.append(val_emb['Emb2'])
         rgb_images.append(images1)
@@ -99,6 +118,45 @@ def gen_embeddings(net, data_loader, device, adain=False):
     nir_embeddings = nir_embeddings[shuffle_indices]
     nir_images = nir_images[shuffle_indices]
     return rgb_embeddings, rgb_images, nir_embeddings, nir_images
+
+
+def try_load_cnn_state_dict(net, state_dict):
+    state_dict = {k.split('backbone_cnn.')[1]: v for k, v in state_dict.items() if 'backbone_cnn' in k}
+    new_state_dict = {}
+    new_state_dict['block.0.weight'] = np.repeat(state_dict['pre_block.0.weight'], 3, axis=1)
+    new_state_dict['block.1.running_mean'] = state_dict['pre_block.1.running_mean']
+    new_state_dict['block.1.running_var'] = state_dict['pre_block.1.running_var']
+    new_state_dict['block.1.num_batches_tracked'] = state_dict['pre_block.1.num_batches_tracked']
+
+    blocks = list(set([int(re.findall(r'\d+', k)[0]) for k in state_dict.keys()]))
+    block_pairs = list(zip(blocks[::2], blocks[1::2]))
+    for block1, block2 in block_pairs:
+        new_state_dict[f'block.{block1 + 3}.weight'] = state_dict[f'block.{block1}.weight']
+        new_state_dict[f'block.{block2 + 3}.running_mean'] = state_dict[f'block.{block2}.running_mean']
+        new_state_dict[f'block.{block2 + 3}.running_var'] = state_dict[f'block.{block2}.running_var']
+        new_state_dict[f'block.{block2 + 3}.num_batches_tracked'] = state_dict[
+            f'block.{block2}.num_batches_tracked']
+    net.backbone.load_state_dict(new_state_dict, strict=True)
+
+
+def try_load_mt_state_dict(net, state_dict):
+    state_dict = {k.split('backbone_cnn.')[1]: v for k, v in state_dict.items() if 'backbone_cnn' in k}
+    new_state_dict = {}
+    new_state_dict['block.0.weight'] = np.repeat(state_dict['pre_block.0.weight'], 3, axis=1)
+    new_state_dict['block.1.running_mean'] = state_dict['pre_block.1.running_mean']
+    new_state_dict['block.1.running_var'] = state_dict['pre_block.1.running_var']
+    new_state_dict['block.1.num_batches_tracked'] = state_dict['pre_block.1.num_batches_tracked']
+
+    blocks = list(set([int(re.findall(r'\d+', k)[0]) for k in state_dict.keys()]))
+    block_pairs = list(zip(blocks[::2], blocks[1::2]))
+    for block1, block2 in block_pairs:
+        new_state_dict[f'block.{block1 + 3}.weight'] = state_dict[f'block.{block1}.weight']
+        new_state_dict[f'block.{block2 + 3}.running_mean'] = state_dict[f'block.{block2}.running_mean']
+        new_state_dict[f'block.{block2 + 3}.running_var'] = state_dict[f'block.{block2}.running_var']
+        new_state_dict[f'block.{block2 + 3}.num_batches_tracked'] = state_dict[
+            f'block.{block2}.num_batches_tracked']
+    net.backbone.load_state_dict(new_state_dict, strict=True)
+
 
 if __name__ == "__main__":
     args = get_args()

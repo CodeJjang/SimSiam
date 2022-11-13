@@ -55,6 +55,7 @@ def get_args():
     parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--save-all', default=False, action='store_true')
     parser.add_argument('--sim', type=str, default='')
+    parser.add_argument('--cycle-name', type=str, required=False)
 
     args = parser.parse_args()
 
