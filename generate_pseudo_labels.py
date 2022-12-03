@@ -20,6 +20,8 @@ from tools.test_monitor import load_test_datasets, evaluate_test, evaluate_valid
 import glob
 import h5py
 import re
+from pathlib import Path
+
 
 
 def generate_pseudo_labels(device, args):
@@ -88,6 +90,7 @@ def generate_pseudo_labels(device, args):
     set = np.concatenate([np.ones(len(train_data)), np.ones(len(val_data)) * 3])
     trainval_name = 'pseudo_labels_trainval_{}_{}_top_{}.hdf5'.format(model_name, args.sim, topk)
     save_path = os.path.join(args.dataset_kwargs['data_dir'], 'train', 'pseudo_labels', args.cycle_name, trainval_name)
+    Path(os.path.dirname(save_path)).mkdir(parents=True, exist_ok=True)
     with h5py.File(save_path, 'w') as f:
         f.create_dataset('Data', data=data)
         f.create_dataset('Labels', data=labels)
