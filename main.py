@@ -55,11 +55,12 @@ def main(device, args):
 
     # define model
     model = get_model(args.model).to(device)
-    try:
-        model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
-    except Exception as e:
-        print('Caught incorrect state dict, trying to resolve...')
-        try_load_cnn_state_dict(model, torch.load(args.checkpoint, map_location=torch.device('cpu'))['state_dict'])
+    if args.checkpoint:
+        try:
+            model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
+        except Exception as e:
+            print('Caught incorrect state dict, trying to resolve...')
+            try_load_cnn_state_dict(model, torch.load(args.checkpoint, map_location=torch.device('cpu'))['state_dict'])
     model = torch.nn.DataParallel(model)
 
     # define optimizer
