@@ -36,14 +36,23 @@ def generate_pseudo_labels(device, args):
         model_name = 'mt_encoder'
         channels = 1
     else:
-        model = get_model(args.model).to(device).module.backbone
+        model = get_model(args.model).to(device)
+        try:
+            model = model.module.backbone
+        except:
+            model = model.backbone
         model_name = 'cnn_backbone'
         channels = 3
+    state_dict = torch.load(args.checkpoint, map_location=torch.device('cpu'))['state_dict']
     try:
-        model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
+        model.load_state_dict(state_dict)
+        model.cuda()
     except Exception as e:
         print('Caught incorrect state dict, trying to resolve...')
-        try_load_cnn_state_dict(model, torch.load(args.checkpoint, map_location=torch.device('cpu'))['state_dict'])
+        try:
+            try_load_cnn_state_dict(model, state_dict, cnn_prefix='backbone')
+        except:
+            try_load_cnn_state_dict(model, state_dict, cnn_prefix='backbone_cnn')
     model = torch.nn.DataParallel(model)
     model.eval()
     args.dataset_kwargs['channels'] = channels
@@ -63,6 +72,7 @@ def generate_pseudo_labels(device, args):
             train=False,
             **args.dataset_kwargs)
     print(datetime.now(), 'Generating embeddings...')
+
     rgb_embeddings, rgb_images, nir_embeddings, nir_images = gen_embeddings(model, train_loader, device, model_name=model_name)
     print(datetime.now(), 'Finished generating embeddings')
 
@@ -123,23 +133,28 @@ def gen_embeddings(net, data_loader, device, adain=False, model_name='cnn_backbo
     return rgb_embeddings, rgb_images, nir_embeddings, nir_images
 
 
-def try_load_cnn_state_dict(net, state_dict):
-    state_dict = {k.split('backbone_cnn.')[1]: v for k, v in state_dict.items() if 'backbone_cnn' in k}
-    new_state_dict = {}
-    new_state_dict['block.0.weight'] = np.repeat(state_dict['pre_block.0.weight'], 3, axis=1)
-    new_state_dict['block.1.running_mean'] = state_dict['pre_block.1.running_mean']
-    new_state_dict['block.1.running_var'] = state_dict['pre_block.1.running_var']
-    new_state_dict['block.1.num_batches_tracked'] = state_dict['pre_block.1.num_batches_tracked']
+def try_load_cnn_state_dict(net, state_dict, cnn_prefix):
+    state_dict = {k.split(f'{cnn_prefix}.')[1]: v for k, v in state_dict.items() if cnn_prefix in k}
+    if 'pre_block.0.weight' in state_dict:
+        # This is to convert the CNN checkpoint from the other (Multiscale Transformer) repo to here
+        new_state_dict = {}
+        new_state_dict['block.0.weight'] = np.repeat(state_dict['pre_block.0.weight'], 3, axis=1)
+        new_state_dict['block.1.running_mean'] = state_dict['pre_block.1.running_mean']
+        new_state_dict['block.1.running_var'] = state_dict['pre_block.1.running_var']
+        new_state_dict['block.1.num_batches_tracked'] = state_dict['pre_block.1.num_batches_tracked']
 
-    blocks = list(set([int(re.findall(r'\d+', k)[0]) for k in state_dict.keys()]))
-    block_pairs = list(zip(blocks[::2], blocks[1::2]))
-    for block1, block2 in block_pairs:
-        new_state_dict[f'block.{block1 + 3}.weight'] = state_dict[f'block.{block1}.weight']
-        new_state_dict[f'block.{block2 + 3}.running_mean'] = state_dict[f'block.{block2}.running_mean']
-        new_state_dict[f'block.{block2 + 3}.running_var'] = state_dict[f'block.{block2}.running_var']
-        new_state_dict[f'block.{block2 + 3}.num_batches_tracked'] = state_dict[
-            f'block.{block2}.num_batches_tracked']
-    net.backbone.load_state_dict(new_state_dict, strict=True)
+        blocks = list(set([int(re.findall(r'\d+', k)[0]) for k in state_dict.keys()]))
+        block_pairs = list(zip(blocks[::2], blocks[1::2]))
+        for block1, block2 in block_pairs:
+            new_state_dict[f'block.{block1 + 3}.weight'] = state_dict[f'block.{block1}.weight']
+            new_state_dict[f'block.{block2 + 3}.running_mean'] = state_dict[f'block.{block2}.running_mean']
+            new_state_dict[f'block.{block2 + 3}.running_var'] = state_dict[f'block.{block2}.running_var']
+            new_state_dict[f'block.{block2 + 3}.num_batches_tracked'] = state_dict[
+                f'block.{block2}.num_batches_tracked']
+        net.backbone.load_state_dict(new_state_dict, strict=True)
+    else:
+        net.load_state_dict(state_dict, strict=True)
+
 
 
 def try_load_mt_state_dict(net, state_dict):
